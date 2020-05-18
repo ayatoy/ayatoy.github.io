@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="UTF-8"?><rss xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0"><channel><title><![CDATA[ayatoyのブログ]]></title><description><![CDATA[プログラミングのことを中心に書いてます。]]></description><link>https://ayatoy.github.io</link><generator>GatsbyJS</generator><lastBuildDate>Mon, 18 May 2020 14:27:55 GMT</lastBuildDate><item><title><![CDATA[Dockerのイメージサイズを削減する]]></title><description><![CDATA[この前作ったMeCabのgRPCサーバのDockerイメージサイズが1.27GBとそこそこの大きさなので出来る限りサイズを小さくしてみたいと思います。]]></description><link>https://ayatoy.github.io/posts/mecab-grpc-dockerfile-reduce-image-size</link><guid isPermaLink="false">https://ayatoy.github.io/posts/mecab-grpc-dockerfile-reduce-image-size</guid><pubDate>Sun, 03 Mar 2019 15:00:00 GMT</pubDate><content:encoded>&lt;p&gt;&lt;a href=&quot;mecab-grpc-dockerfile&quot;&gt;この前&lt;/a&gt;作ったMeCabのgRPCサーバ(&lt;a href=&quot;https://github.com/ayatoy/mecab-grpc&quot; target=&quot;_blank&quot; rel=&quot;nofollow noopener noreferrer&quot;&gt;mecab-grpc&lt;/a&gt;)のDockerイメージサイズが1.27GBとそこそこの大きさなので出来る限りサイズを小さくしてみたいと思います。&lt;/p&gt;
+&lt;h2 id=&quot;dockerfile&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#dockerfile&quot; aria-label=&quot;dockerfile permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;Dockerfile&lt;/h2&gt;
+&lt;div class=&quot;gatsby-highlight&quot; data-language=&quot;text&quot;&gt;&lt;pre class=&quot;language-text&quot;&gt;&lt;code class=&quot;language-text&quot;&gt;FROM python:3.5.6-alpine3.9
+LABEL Name=mecab-grpc Version=1.0.0
+
+RUN apk add --no-cache git make g++ swig
+
+WORKDIR /
+RUN git clone https://github.com/taku910/mecab.git
+WORKDIR /mecab/mecab
+RUN ./configure --enable-utf8-only \
+    &amp;amp;&amp;amp; make \
+    &amp;amp;&amp;amp; make check \
+    &amp;amp;&amp;amp; make install
+
+WORKDIR /mecab/mecab-ipadic
+RUN ./configure --with-charset=utf8 \
+    &amp;amp;&amp;amp; make \
+    &amp;amp;&amp;amp; make install
+
+WORKDIR /mecab/mecab-jumandic
+RUN ./configure --with-charset=utf8 \
+    &amp;amp;&amp;amp; make \
+    &amp;amp;&amp;amp; make install
+
+COPY . /mecab-grpc
+WORKDIR /mecab-grpc
+RUN python -m pip install --upgrade pip \
+    &amp;amp;&amp;amp; python -m pip install -r requirements.txt \
+    &amp;amp;&amp;amp; sh protoc-gen.sh
+
+CMD [&amp;quot;python&amp;quot;, &amp;quot;server.py&amp;quot;]&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;現状はこんな感じ。ベースイメージは既にalpineを使っているので、ベースイメージはそのままで不要なパッケージを削除したりレイヤー数を抑えたりする感じになると思います。(頑張ればマルチステージビルドとdistrolessみたいな方向性で極限まで削れるんだろうけど、今回のケースは手間に対して得られる効果が薄そうなのでalpineと古典的な削減方法で妥協)&lt;/p&gt;
+&lt;h2 id=&quot;調べる&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#%E8%AA%BF%E3%81%B9%E3%82%8B&quot; aria-label=&quot;調べる permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;調べる&lt;/h2&gt;
+&lt;p&gt;削減の方法はググればいっぱい出てくる。実際に作業する前に調べて得たポイントを書き出してみる。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;小さいベースイメージを使う&lt;/li&gt;
+&lt;li&gt;レイヤーの数を最小限にする&lt;/li&gt;
+&lt;li&gt;デバッグ用のツールをインストールしない&lt;/li&gt;
+&lt;li&gt;不要になったツールは同じレイヤーで削除&lt;/li&gt;
+&lt;li&gt;適切な &lt;code class=&quot;language-text&quot;&gt;.dockerignore&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code class=&quot;language-text&quot;&gt;apt-get install -y --no-install-recommends …&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code class=&quot;language-text&quot;&gt;rm -rf /var/lib/apt/lists/*&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code class=&quot;language-text&quot;&gt;apt-get purge -y --auto-remove …&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code class=&quot;language-text&quot;&gt;apk add --no-cache …&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code class=&quot;language-text&quot;&gt;apk add —-virtual …&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code class=&quot;language-text&quot;&gt;apk del --purge …&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;どのサイトもこんな感じで同じようなことを言ってた。まとめると、&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;アプリの動作にとって不要なものはインストールしない&lt;/li&gt;
+&lt;li&gt;ツール(とかソース、キャッシュ、その他一時的なファイル)の追加と削除は1つのコンテキストと考えて、1つのレイヤーで完結させる&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;という感じだと思う。&lt;/p&gt;
+&lt;h2 id=&quot;やってみる&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#%E3%82%84%E3%81%A3%E3%81%A6%E3%81%BF%E3%82%8B&quot; aria-label=&quot;やってみる permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;やってみる&lt;/h2&gt;
+&lt;p&gt;まずどのレイヤーでどのくらいサイズが増えているのか見たいので &lt;code class=&quot;language-text&quot;&gt;docker history&lt;/code&gt; をする。&lt;/p&gt;
+&lt;div class=&quot;gatsby-highlight&quot; data-language=&quot;text&quot;&gt;&lt;pre class=&quot;language-text&quot;&gt;&lt;code class=&quot;language-text&quot;&gt;IMAGE               CREATED             CREATED BY                                      SIZE                COMMENT
+67eb23360bbf        4 hours ago         /bin/sh -c #(nop)  CMD [&amp;quot;python&amp;quot; &amp;quot;server.py&amp;quot;]   0B
+2978157db9ba        4 hours ago         /bin/sh -c python -m pip install --upgrade p…   216MB
+ad947e372dde        4 hours ago         /bin/sh -c #(nop) WORKDIR /mecab-grpc           0B
+6842b17a252e        4 hours ago         /bin/sh -c #(nop) COPY dir:7ff7416db8e5d3d9d…   3.85kB
+b7a768bcc5b6        4 hours ago         /bin/sh -c ./configure --with-charset=utf8  …   297MB
+f08be6cb767a        4 hours ago         /bin/sh -c #(nop) WORKDIR /mecab/mecab-juman…   0B
+db55cd3ac0c1        4 hours ago         /bin/sh -c ./configure --with-charset=utf8  …   106MB
+33cd77a79206        4 hours ago         /bin/sh -c #(nop) WORKDIR /mecab/mecab-ipadic   0B
+c77fe2139ae9        4 hours ago         /bin/sh -c ./configure --enable-utf8-only   …   10.7MB
+05277449a505        4 hours ago         /bin/sh -c #(nop) WORKDIR /mecab/mecab          0B
+1c7466774cb7        4 hours ago         /bin/sh -c git clone https://github.com/taku…   379MB
+b5e81d428587        4 hours ago         /bin/sh -c #(nop) WORKDIR /                     0B
+7471a9d7fcf5        4 hours ago         /bin/sh -c apk add --no-cache git make g++ s…   188MB
+3201b5481ba9        4 hours ago         /bin/sh -c #(nop)  LABEL Name=mecab-grpc Ver…   0B
+be8ce886a36a        6 days ago          /bin/sh -c #(nop)  CMD [&amp;quot;python3&amp;quot;]              0B
+&amp;lt;missing&amp;gt;           6 days ago          /bin/sh -c set -ex;   wget -O get-pip.py &amp;#39;ht…   6.04MB
+&amp;lt;missing&amp;gt;           6 days ago          /bin/sh -c #(nop)  ENV PYTHON_PIP_VERSION=19…   0B
+&amp;lt;missing&amp;gt;           3 weeks ago         /bin/sh -c cd /usr/local/bin  &amp;amp;&amp;amp; ln -s idle3…   32B
+&amp;lt;missing&amp;gt;           3 weeks ago         /bin/sh -c set -ex  &amp;amp;&amp;amp; apk add --no-cache --…   61.8MB
+&amp;lt;missing&amp;gt;           3 weeks ago         /bin/sh -c #(nop)  ENV PYTHON_VERSION=3.5.6     0B
+&amp;lt;missing&amp;gt;           3 weeks ago         /bin/sh -c #(nop)  ENV GPG_KEY=97FC712E4C024…   0B
+&amp;lt;missing&amp;gt;           3 weeks ago         /bin/sh -c apk add --no-cache ca-certificates   551kB
+&amp;lt;missing&amp;gt;           3 weeks ago         /bin/sh -c #(nop)  ENV LANG=C.UTF-8             0B
+&amp;lt;missing&amp;gt;           3 weeks ago         /bin/sh -c #(nop)  ENV PATH=/usr/local/bin:/…   0B
+&amp;lt;missing&amp;gt;           4 weeks ago         /bin/sh -c #(nop)  CMD [&amp;quot;/bin/sh&amp;quot;]              0B
+&amp;lt;missing&amp;gt;           4 weeks ago         /bin/sh -c #(nop) ADD file:2a1fc9351afe35698…   5.53MB&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;サイズが増えているところをピックアップして見てゆく。&lt;/p&gt;
+&lt;p&gt;&lt;code class=&quot;language-text&quot;&gt;apk add&lt;/code&gt; しているところで188MB増。 &lt;code class=&quot;language-text&quot;&gt;g++&lt;/code&gt; パッケージ以外( &lt;code class=&quot;language-text&quot;&gt;git&lt;/code&gt;、&lt;code class=&quot;language-text&quot;&gt;make&lt;/code&gt;、&lt;code class=&quot;language-text&quot;&gt;swig&lt;/code&gt; )はビルド&amp;#x26;インストールする時しか必要ないので使い終わったら削除できる。( &lt;code class=&quot;language-text&quot;&gt;g++&lt;/code&gt; にはロードされる共有ライブラリが含まれる。あとコンパイラも含まれてるから改善の余地あり)&lt;/p&gt;
+&lt;p&gt;MeCabのリポジトリをクローンしているところで379MB増。これはMeCab本体と辞書のインストールが終わったら必要なくなるので削除できる。&lt;/p&gt;
+&lt;p&gt;MeCab本体のインストールで10.7MB増、ipadicのインストールで106MB増、jumandicのインストールで297MB増。jumandicは正直使ったことが無いので削除。(辞書は人それぞれ。というか辞書によってはサイズが爆増するので、イメージサイズを頑張って削減するぞ！的な試みがほぼ無意味になるという)&lt;/p&gt;
+&lt;p&gt;最後に &lt;code class=&quot;language-text&quot;&gt;pip&lt;/code&gt; のアップグレードと依存パッケージのインストールとgRPCのスタブ諸々の生成で216MB増。そもそも &lt;code class=&quot;language-text&quot;&gt;pip&lt;/code&gt; はベースイメージの段階で最新のバージョンが入るっぽいからアップグレードは必要ない(削減とはあまり関係ないけど)。あとは依存パッケージのインストール時に &lt;code class=&quot;language-text&quot;&gt;pip&lt;/code&gt; のキャッシュを作らないために &lt;code class=&quot;language-text&quot;&gt;--no-cache-dir&lt;/code&gt; を追加する。&lt;/p&gt;
+&lt;p&gt;というわけで、書き直した Dockerfile が以下。&lt;/p&gt;
+&lt;div class=&quot;gatsby-highlight&quot; data-language=&quot;text&quot;&gt;&lt;pre class=&quot;language-text&quot;&gt;&lt;code class=&quot;language-text&quot;&gt;FROM python:3.5.6-alpine3.9
+LABEL Name=mecab-grpc Version=1.0.0
+
+COPY . /opt/mecab-grpc
+
+RUN set -x \
+    &amp;amp;&amp;amp; apk add --no-cache --virtual .run-deps \
+        g++ \
+    \
+    &amp;amp;&amp;amp; apk add --no-cache --virtual .build-deps \
+        git \
+        make \
+        swig \
+    \
+    &amp;amp;&amp;amp; mkdir -p /usr/local/src \
+    &amp;amp;&amp;amp; cd /usr/local/src \
+    &amp;amp;&amp;amp; git clone https://github.com/taku910/mecab.git \
+    \
+    &amp;amp;&amp;amp; cd /usr/local/src/mecab/mecab \
+    &amp;amp;&amp;amp; ./configure --enable-utf8-only &amp;amp;&amp;amp; make &amp;amp;&amp;amp; make check &amp;amp;&amp;amp; make install \
+    \
+    &amp;amp;&amp;amp; cd /usr/local/src/mecab/mecab-ipadic \
+    &amp;amp;&amp;amp; ./configure --with-charset=utf8 &amp;amp;&amp;amp; make &amp;amp;&amp;amp; make check &amp;amp;&amp;amp; make install \
+    \
+    &amp;amp;&amp;amp; cd /opt/mecab-grpc \
+    &amp;amp;&amp;amp; pip install \
+        --disable-pip-version-check \
+        --no-cache-dir \
+        -r requirements.txt \
+    &amp;amp;&amp;amp; sh protoc-gen.sh \
+    \
+    &amp;amp;&amp;amp; apk del --purge .build-deps \
+    &amp;amp;&amp;amp; rm -rf /usr/local/src/mecab
+
+WORKDIR /opt/mecab-grpc
+CMD [&amp;quot;python&amp;quot;, &amp;quot;server.py&amp;quot;]&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;いくつかに分散していた &lt;code class=&quot;language-text&quot;&gt;RUN&lt;/code&gt; と &lt;code class=&quot;language-text&quot;&gt;WORKDIR&lt;/code&gt; が1つ &lt;code class=&quot;language-text&quot;&gt;RUN&lt;/code&gt; にまとまっている(その都合上 &lt;code class=&quot;language-text&quot;&gt;COPY&lt;/code&gt; を &lt;code class=&quot;language-text&quot;&gt;RUN&lt;/code&gt; の前に持ってくる)。 &lt;code class=&quot;language-text&quot;&gt;RUN&lt;/code&gt; の中ではまず &lt;code class=&quot;language-text&quot;&gt;set -x&lt;/code&gt; をする。これで単一の &lt;code class=&quot;language-text&quot;&gt;RUN&lt;/code&gt; で複数のコマンドを実行する時の出力が見やすくなる。公式のDockerfileがやってるのを真似した(サブシェルとかパイプを使う場合は &lt;code class=&quot;language-text&quot;&gt;set -ex&lt;/code&gt; としたり)。&lt;/p&gt;
+&lt;p&gt;&lt;code class=&quot;language-text&quot;&gt;apt add&lt;/code&gt; では &lt;code class=&quot;language-text&quot;&gt;--virtual&lt;/code&gt; でパッケージ群の意図の把握と管理がしやすいように名前を付ける。( &lt;code class=&quot;language-text&quot;&gt;.run-deps&lt;/code&gt; は後で何かをするわけじゃないけど、今回は分かりやすいようにあえて)&lt;/p&gt;
+&lt;p&gt;MeCab本体と辞書のインストールは特に変わらない(jumandicは削除)。 &lt;code class=&quot;language-text&quot;&gt;pip&lt;/code&gt; はバージョンチェックのスキップをするために &lt;code class=&quot;language-text&quot;&gt;--disable-pip-version-check&lt;/code&gt; を追加(新しいバージョンの &lt;code class=&quot;language-text&quot;&gt;pip&lt;/code&gt; があるぜ的なメッセージを出さないために)。 &lt;code class=&quot;language-text&quot;&gt;--no-cache-dir&lt;/code&gt; は上述の通り。&lt;/p&gt;
+&lt;p&gt;そんで &lt;code class=&quot;language-text&quot;&gt;RUN&lt;/code&gt; の最後に忘れずに &lt;code class=&quot;language-text&quot;&gt;apk del&lt;/code&gt; で &lt;code class=&quot;language-text&quot;&gt;.build-deps&lt;/code&gt; を削除して、MeCabのソースコードも削除。&lt;/p&gt;
+&lt;p&gt;こんな感じでイメージサイズの合計が442MB。約1/3に削減できた。&lt;/p&gt;</content:encoded></item><item><title><![CDATA[MeCabのgRPCサーバを作る]]></title><description><![CDATA[MeCabの環境を整えるのが面倒なのと(必要になる度に忘れて調べ直したり)、複数の言語からMeCabを使いたい場合はサーバにした方が楽そうなので作りました。インターフェイス的にはREST APIやらJSON-RPCやら色々考えられますが、スキーマがあって長い目で見ると色々と楽だったり、パフォーマンスが出たり、gRPCの人気自体が今後伸びそうだったり、等の理由でgRPCを採用しました。]]></description><link>https://ayatoy.github.io/posts/mecab-grpc-dockerfile</link><guid isPermaLink="false">https://ayatoy.github.io/posts/mecab-grpc-dockerfile</guid><pubDate>Tue, 26 Feb 2019 15:00:00 GMT</pubDate><content:encoded>&lt;p&gt;MeCabの環境を整えるのが面倒なのと(必要になる度に忘れて調べ直したり)、複数の言語からMeCabを使いたい場合はサーバにした方が楽そうなので作りました。インターフェイス的にはREST APIやらJSON-RPCやら色々考えられますが、スキーマがあって長い目で見ると色々と楽だったり、パフォーマンスが出たり、gRPCの人気自体が今後伸びそうだったり、等の理由でgRPCを採用しました。&lt;/p&gt;
+&lt;h2 id=&quot;今回の成果物&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#%E4%BB%8A%E5%9B%9E%E3%81%AE%E6%88%90%E6%9E%9C%E7%89%A9&quot; aria-label=&quot;今回の成果物 permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;今回の成果物&lt;/h2&gt;
+&lt;p&gt;&lt;a href=&quot;https://github.com/ayatoy/mecab-grpc&quot; target=&quot;_blank&quot; rel=&quot;nofollow noopener noreferrer&quot;&gt;https://github.com/ayatoy/mecab-grpc&lt;/a&gt;&lt;/p&gt;
+&lt;h2 id=&quot;プロジェクトの構造&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#%E3%83%97%E3%83%AD%E3%82%B8%E3%82%A7%E3%82%AF%E3%83%88%E3%81%AE%E6%A7%8B%E9%80%A0&quot; aria-label=&quot;プロジェクトの構造 permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;プロジェクトの構造&lt;/h2&gt;
+&lt;div class=&quot;gatsby-highlight&quot; data-language=&quot;text&quot;&gt;&lt;pre class=&quot;language-text&quot;&gt;&lt;code class=&quot;language-text&quot;&gt;├── .dockerignore
+├── .gitignore
+├── Dockerfile
+├── LICENSE
+├── README.md
+├── mecab.proto
+├── protoc-gen.sh
+├── requirements.txt
+├── server.py
+└── test_server.py&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;主要なものは &lt;code class=&quot;language-text&quot;&gt;mecab.proto&lt;/code&gt;、&lt;code class=&quot;language-text&quot;&gt;server.py&lt;/code&gt;、&lt;code class=&quot;language-text&quot;&gt;Dockerfile&lt;/code&gt; の3つのみ。 &lt;code class=&quot;language-text&quot;&gt;protoc-gen.sh&lt;/code&gt; は &lt;code class=&quot;language-text&quot;&gt;mecab.proto&lt;/code&gt; からスタブ等を生成するために &lt;code class=&quot;language-text&quot;&gt;grpc_tools.protoc&lt;/code&gt; を呼び出しているだけ。 &lt;code class=&quot;language-text&quot;&gt;test_server.py&lt;/code&gt; は &lt;code class=&quot;language-text&quot;&gt;pytest&lt;/code&gt; から呼び出されるテスト。残りはおまけ。&lt;/p&gt;
+&lt;h2 id=&quot;mecabproto&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#mecabproto&quot; aria-label=&quot;mecabproto permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;mecab.proto&lt;/h2&gt;
+&lt;div class=&quot;gatsby-highlight&quot; data-language=&quot;text&quot;&gt;&lt;pre class=&quot;language-text&quot;&gt;&lt;code class=&quot;language-text&quot;&gt;syntax = &amp;quot;proto3&amp;quot;;
+
+package mecab;
+
+service Parser {
+    rpc Parse (ParseRequest) returns (ParseResponse) {}
+}
+
+message ParseRequest {
+    repeated string sentences = 1;
+    string dictionary = 2;
+}
+
+message ParseResponse {
+    repeated Sentence sentences = 1;
+}
+
+message Sentence {
+    repeated Word words = 1;
+}
+
+message Word {
+    string surface = 1;
+    repeated string feature = 2;
+}&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;単純。 &lt;code class=&quot;language-text&quot;&gt;Parser&lt;/code&gt; という1つのサービスに &lt;code class=&quot;language-text&quot;&gt;Parse&lt;/code&gt; というRPCが1つ定義されているだけ。 &lt;code class=&quot;language-text&quot;&gt;Parse&lt;/code&gt; は &lt;code class=&quot;language-text&quot;&gt;ParseRequest&lt;/code&gt; を受け取って
+&lt;code class=&quot;language-text&quot;&gt;ParseResponse&lt;/code&gt; を返す。 &lt;code class=&quot;language-text&quot;&gt;ParseRequest&lt;/code&gt; は解析したい文字列のリスト &lt;code class=&quot;language-text&quot;&gt;sentences&lt;/code&gt; と、 &lt;code class=&quot;language-text&quot;&gt;sentences&lt;/code&gt; のそれぞれの文字列を解析する際に使用する辞書を指定するための &lt;code class=&quot;language-text&quot;&gt;dictionary&lt;/code&gt; を持つ。 &lt;code class=&quot;language-text&quot;&gt;ParseResponse&lt;/code&gt; は &lt;code class=&quot;language-text&quot;&gt;ParseRequest&lt;/code&gt; で渡した文字列のリストのそれぞれの要素に対応した解析結果 &lt;code class=&quot;language-text&quot;&gt;Sentence&lt;/code&gt; のリストを元の順序を保ったまま保持する。 &lt;code class=&quot;language-text&quot;&gt;Sentence&lt;/code&gt; には分解された単語 &lt;code class=&quot;language-text&quot;&gt;Word&lt;/code&gt; のリスト、 &lt;code class=&quot;language-text&quot;&gt;Word&lt;/code&gt; には &lt;code class=&quot;language-text&quot;&gt;surface&lt;/code&gt; と品詞などの情報を含む &lt;code class=&quot;language-text&quot;&gt;feature&lt;/code&gt; をそれぞれ持つ。&lt;/p&gt;
+&lt;h2 id=&quot;serverpy&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#serverpy&quot; aria-label=&quot;serverpy permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;server.py&lt;/h2&gt;
+&lt;div class=&quot;gatsby-highlight&quot; data-language=&quot;text&quot;&gt;&lt;pre class=&quot;language-text&quot;&gt;&lt;code class=&quot;language-text&quot;&gt;from concurrent import futures
+import os
+import os.path
+import subprocess
+import threading
+import time
+
+import MeCab
+import grpc
+
+from mecab_pb2 import ParseResponse, Sentence, Word
+from mecab_pb2_grpc import ParserServicer, add_ParserServicer_to_server
+
+_ONE_DAY_IN_SECONDS = 60 * 60 * 24
+
+_HOST = os.environ.get(&amp;#39;MECAB_GRPC_HOST&amp;#39;, &amp;#39;[::]&amp;#39;)
+_PORT = os.environ.get(&amp;#39;MECAB_GRPC_PORT&amp;#39;, &amp;#39;50051&amp;#39;)
+_ADDRESS = _HOST + &amp;#39;:&amp;#39; + _PORT
+
+
+class Environment:
+
+    def __init__(self, default_dictionary=&amp;#39;ipadic&amp;#39;):
+        self.dictionary_directory = subprocess.check_output([&amp;#39;mecab-config&amp;#39;, &amp;#39;--dicdir&amp;#39;]).decode(&amp;#39;utf-8&amp;#39;).split(&amp;#39;\n&amp;#39;)[0]
+        if not self.dictionary_directory:
+            raise Exception(&amp;#39;Invalid Directory: %r&amp;#39; % self.dictionary_directory)
+        self.default_dictionary = default_dictionary
+        self.dictionaries = set(os.listdir(self.dictionary_directory))
+        self.taggers = threading.local()
+
+    def get_tagger(self, dictionary):
+        if dictionary not in self.dictionaries:
+            dictionary = self.default_dictionary
+        tagger = getattr(self.taggers, dictionary, None)
+        if tagger is None:
+            tagger = MeCab.Tagger(&amp;#39;-d %s&amp;#39; % os.path.join(self.dictionary_directory, dictionary))
+            # For bug that node.surface can not be obtained with Python3.
+            tagger.parse(&amp;#39;&amp;#39;)
+            setattr(self.taggers, dictionary, tagger)
+        return tagger
+
+
+class Parser(ParserServicer):
+
+    def __init__(self, environment):
+        self.environment = environment
+
+    def Parse(self, request, context):
+        sentence_texts = request.sentences
+        dictionary = request.dictionary
+        tagger = self.environment.get_tagger(dictionary)
+        sentences = []
+        for sentence_text in sentence_texts:
+            words = []
+            for row in tagger.parse(sentence_text).split(&amp;#39;\n&amp;#39;)[:-2]:
+                cols = row.split(&amp;#39;\t&amp;#39;)
+                words.append(Word(
+                    surface=cols[0],
+                    feature=cols[1].split(&amp;#39;,&amp;#39;),
+                ))
+            sentences.append(Sentence(words=words))
+        return ParseResponse(sentences=sentences)
+
+
+def serve():
+    environment = Environment()
+    server = grpc.server(futures.ThreadPoolExecutor())
+    add_ParserServicer_to_server(Parser(environment), server)
+    server.add_insecure_port(_ADDRESS)
+    server.start()
+    try:
+        while True:
+            time.sleep(_ONE_DAY_IN_SECONDS)
+    except KeyboardInterrupt:
+        server.stop(0)
+
+
+if __name__ == &amp;#39;__main__&amp;#39;:
+    serve()&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;これも単純。ほぼチュートリアルに毛が生えた程度。まずプログラムは &lt;code class=&quot;language-text&quot;&gt;MECAB_GRPC_HOST&lt;/code&gt; と &lt;code class=&quot;language-text&quot;&gt;MECAB_GRPC_PORT&lt;/code&gt; という2つの環境変数を読み取る。それぞれは &lt;code class=&quot;language-text&quot;&gt;_HOST&lt;/code&gt; と &lt;code class=&quot;language-text&quot;&gt;_PORT&lt;/code&gt; という変数に(環境変数が存在しない場合はデフォルト値を伴って)格納され、 &lt;code class=&quot;language-text&quot;&gt;_ADDRESS&lt;/code&gt; という変数に結合された状態で保持され、後で &lt;code class=&quot;language-text&quot;&gt;server.add_insecure_port()&lt;/code&gt; に渡される。&lt;/p&gt;
+&lt;p&gt;クラス &lt;code class=&quot;language-text&quot;&gt;Environment&lt;/code&gt; はインストールされたMeCabの環境を抽象化したモノ(のつもり)。インスタンスが作られると &lt;code class=&quot;language-text&quot;&gt;mecab-config&lt;/code&gt; のプロセスを使って辞書周りのディレクトリを読み取って、システムに存在する辞書を認識する。また、ワーカースレッドごとにTaggerをキャッシュするために &lt;code class=&quot;language-text&quot;&gt;self.taggers&lt;/code&gt; に &lt;code class=&quot;language-text&quot;&gt;local&lt;/code&gt; オブジェクトを保持する。 &lt;code class=&quot;language-text&quot;&gt;get_tagger&lt;/code&gt; メソッドは辞書の名前を受け取ってそれに対応するTaggerを返す(キャッシュが存在する場合はそちらを返す)。&lt;/p&gt;
+&lt;p&gt;クラス &lt;code class=&quot;language-text&quot;&gt;Parser&lt;/code&gt; はgRPCサービスの実装(protocで作られた &lt;code class=&quot;language-text&quot;&gt;ParserServicer&lt;/code&gt; を継承)。コンストラクタから &lt;code class=&quot;language-text&quot;&gt;Environment&lt;/code&gt; のインスタンスを受け取って &lt;code class=&quot;language-text&quot;&gt;self.environment&lt;/code&gt; に保持。 &lt;code class=&quot;language-text&quot;&gt;Parse&lt;/code&gt; メソッドはRPCの本体。 &lt;code class=&quot;language-text&quot;&gt;ParseRequest&lt;/code&gt; のオブジェクトを受け取り &lt;code class=&quot;language-text&quot;&gt;self.environment.get_tagger()&lt;/code&gt; を呼び出してTaggerを取得し、 &lt;code class=&quot;language-text&quot;&gt;request.sentences&lt;/code&gt; のそれぞれの文字列を &lt;code class=&quot;language-text&quot;&gt;tagger.parse()&lt;/code&gt; に渡して出力された文字列を泥臭く分解して( &lt;code class=&quot;language-text&quot;&gt;tagger.parseToNode()&lt;/code&gt; を使うパターンもあるけど、自分の用途では今の所単語の &lt;code class=&quot;language-text&quot;&gt;surface&lt;/code&gt; と品詞が分かれば良いので &lt;code class=&quot;language-text&quot;&gt;tagger.parse()&lt;/code&gt; で十分)、 &lt;code class=&quot;language-text&quot;&gt;Word&lt;/code&gt;、&lt;code class=&quot;language-text&quot;&gt;Sentence&lt;/code&gt;、&lt;code class=&quot;language-text&quot;&gt;ParseResponse&lt;/code&gt; を構成して &lt;code class=&quot;language-text&quot;&gt;return&lt;/code&gt; 。&lt;/p&gt;
+&lt;p&gt;&lt;code class=&quot;language-text&quot;&gt;serve()&lt;/code&gt; はチュートリアルとほぼ同じ。違うのは &lt;code class=&quot;language-text&quot;&gt;Environment&lt;/code&gt; のインスタンスを作って &lt;code class=&quot;language-text&quot;&gt;Parser&lt;/code&gt; に渡してるくらい。あとスレッドプールのワーカ数をPythonのデフォルト(プロセッサの数x5)にしてるとこ(これは環境変数とかでパラメータを受け取って調整できるようにしても良いと思う)。&lt;/p&gt;
+&lt;h2 id=&quot;dockerfile&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#dockerfile&quot; aria-label=&quot;dockerfile permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;Dockerfile&lt;/h2&gt;
+&lt;div class=&quot;gatsby-highlight&quot; data-language=&quot;text&quot;&gt;&lt;pre class=&quot;language-text&quot;&gt;&lt;code class=&quot;language-text&quot;&gt;FROM python:3.5.6-alpine3.9
+LABEL Name=mecab-grpc Version=1.0.0
+
+RUN apk add --no-cache git make g++ swig
+
+WORKDIR /
+RUN git clone https://github.com/taku910/mecab.git
+WORKDIR /mecab/mecab
+RUN ./configure --enable-utf8-only \
+    &amp;amp;&amp;amp; make \
+    &amp;amp;&amp;amp; make check \
+    &amp;amp;&amp;amp; make install
+
+WORKDIR /mecab/mecab-ipadic
+RUN ./configure --with-charset=utf8 \
+    &amp;amp;&amp;amp; make \
+    &amp;amp;&amp;amp; make install
+
+WORKDIR /mecab/mecab-jumandic
+RUN ./configure --with-charset=utf8 \
+    &amp;amp;&amp;amp; make \
+    &amp;amp;&amp;amp; make install
+
+COPY . /mecab-grpc
+WORKDIR /mecab-grpc
+RUN python -m pip install --upgrade pip \
+    &amp;amp;&amp;amp; python -m pip install -r requirements.txt \
+    &amp;amp;&amp;amp; sh protoc-gen.sh
+
+CMD [&amp;quot;python&amp;quot;, &amp;quot;server.py&amp;quot;]&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;ベースイメージは &lt;code class=&quot;language-text&quot;&gt;python:3.5.6-alpine3.9&lt;/code&gt; 。Pythonが3.5なのは、3.6と3.7だと自分の手元の環境ではgRPC周りでエラーが出たから(後で調べようの精神。動かすことを優先)。そんでapkで必要なパッケージを入れて(mecab-python3が0.996.1からswigを必要とする)、 MeCab本体と付属の辞書をインストール(mecab-ipadic-NEologdとかその他の辞書が必要な場合は、各々入れるだけで &lt;code class=&quot;language-text&quot;&gt;ParseRequest&lt;/code&gt; で指定してそのまま動くと思う)。最後にmecab-grpcに必要なものを &lt;code class=&quot;language-text&quot;&gt;pip install -r requirements.txt&lt;/code&gt; した後に &lt;code class=&quot;language-text&quot;&gt;sh protoc-gen.sh&lt;/code&gt; でスタブ諸々を生成して終わり。&lt;/p&gt;
+&lt;p&gt;イメージサイズの削減はalpineを使う以外は特にしていないのでまた今度。&lt;br&gt;
+(追記:&lt;a href=&quot;mecab-grpc-dockerfile-reduce-image-size&quot;&gt;Dockerのイメージサイズを削減する&lt;/a&gt;)&lt;/p&gt;
+&lt;h2 id=&quot;参考&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#%E5%8F%82%E8%80%83&quot; aria-label=&quot;参考 permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;参考&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&quot;https://www.python.org/&quot; target=&quot;_blank&quot; rel=&quot;nofollow noopener noreferrer&quot;&gt;Python&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://taku910.github.io/mecab/&quot; target=&quot;_blank&quot; rel=&quot;nofollow noopener noreferrer&quot;&gt;MeCab&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://grpc.io/&quot; target=&quot;_blank&quot; rel=&quot;nofollow noopener noreferrer&quot;&gt;gRPC&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://developers.google.com/protocol-buffers/&quot; target=&quot;_blank&quot; rel=&quot;nofollow noopener noreferrer&quot;&gt;Protocol Buffers&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://www.docker.com/&quot; target=&quot;_blank&quot; rel=&quot;nofollow noopener noreferrer&quot;&gt;Docker&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;</content:encoded></item></channel></rss>
