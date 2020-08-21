@@ -3,6 +3,7 @@
 <url> <loc>https://ayatoy.github.io/tags</loc> <changefreq>daily</changefreq> <priority>0.7</priority> </url>
 <url> <loc>https://ayatoy.github.io/categories</loc> <changefreq>daily</changefreq> <priority>0.7</priority> </url>
 <url> <loc>https://ayatoy.github.io/pages/about/</loc> <changefreq>daily</changefreq> <priority>0.7</priority> </url>
+<url> <loc>https://ayatoy.github.io/pages/projects/</loc> <changefreq>daily</changefreq> <priority>0.7</priority> </url>
 <url> <loc>https://ayatoy.github.io/posts/mecab-grpc-dockerfile-reduce-image-size</loc> <changefreq>daily</changefreq> <priority>0.7</priority> </url>
 <url> <loc>https://ayatoy.github.io/posts/mecab-grpc-dockerfile</loc> <changefreq>daily</changefreq> <priority>0.7</priority> </url>
 <url> <loc>https://ayatoy.github.io/tag/docker</loc> <changefreq>daily</changefreq> <priority>0.7</priority> </url>
@@ -10,6 +11,6 @@
 <url> <loc>https://ayatoy.github.io/tag/protocol-buffers</loc> <changefreq>daily</changefreq> <priority>0.7</priority> </url>
 <url> <loc>https://ayatoy.github.io/tag/python</loc> <changefreq>daily</changefreq> <priority>0.7</priority> </url>
 <url> <loc>https://ayatoy.github.io/tag/g-rpc</loc> <changefreq>daily</changefreq> <priority>0.7</priority> </url>
-<url> <loc>https://ayatoy.github.io/category/programming</loc> <changefreq>daily</changefreq> <priority>0.7</priority> </url>
+<url> <loc>https://ayatoy.github.io/category/プログラミング</loc> <changefreq>daily</changefreq> <priority>0.7</priority> </url>
 <url> <loc>https://ayatoy.github.io/</loc> <changefreq>daily</changefreq> <priority>0.7</priority> </url>
 </urlset>
